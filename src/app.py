@@ -3,16 +3,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
+import streamlit.components.v1 as components
+from src.canvas_client import fetch_user_profile
 from src.watcher import run_watcher
 from src.chat_agent import process_handoff, handle_user_chat
 from src.state import (
-    register_user, get_user, consume_handoffs,
+    register_user, get_user, get_user_by_session,
+    authenticate_by_pin, consume_handoffs,
     get_memory, set_memory, DB_PATH
 )
 
 st.set_page_config(page_title="Clockwise", page_icon="⏰", layout="centered", initial_sidebar_state="collapsed")
 
-# Minimal mobile-friendly styling
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
@@ -21,47 +23,94 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def set_browser_cookie(name: str, value: str, days: int = 365):
+    """Writes a persistent first-party cookie to the user's mobile/desktop browser."""
+    max_age = days * 86400
+    components.html(
+        f"<script>parent.document.cookie = '{name}={value}; path=/; max-age={max_age}; SameSite=Lax';</script>",
+        height=0,
+    )
+
+
 st.title("⏰ Clockwise")
 
-# Check if user is already logged in via URL param (?uid=...) or session
-uid_param = st.query_params.get("uid")
+# 1. Check Session State or Browser Cookie (No URL parameters needed)
 if "user" not in st.session_state:
-    st.session_state.user = get_user(uid_param, db_path=DB_PATH) if uid_param else None
+    st.session_state.user = None
 
-# --- SCREEN 1: GUIDED ONBOARDING FOR NEW USERS ---
+if st.session_state.user is None and not st.session_state.get("logged_out"):
+    cookie_token = st.context.cookies.get("cw_session")
+    if cookie_token:
+        st.session_state.user = get_user_by_session(cookie_token, db_path=DB_PATH)
+
+# Write pending cookie if user just logged in
+if st.session_state.get("pending_cookie"):
+    set_browser_cookie("cw_session", st.session_state.pop("pending_cookie"), days=365)
+
+# --- SCREEN 1: ONBOARDING & RETURNING LOGIN ---
 if not st.session_state.user:
-    st.subheader("Connect your FGCU Canvas in 60 seconds")
-    st.markdown("""
-    1. **[Tap here to open FGCU Canvas Settings](https://fgcu.instructure.com/profile/settings)** and log in.
-    2. Scroll down to **Approved Integrations** and tap **+ New Access Token**.
-    3. Type `Clockwise` for the purpose, tap **Generate Token**, and paste it below:
-    """)
+    tab_setup, tab_login = st.tabs(["✨ First-Time / New Token", "🔑 Returning User (PIN)"])
 
-    token_input = st.text_input("Canvas Access Token", type="password", placeholder="Paste your token here...")
-    if st.button("Connect Canvas", type="primary", use_container_width=True) and token_input:
-        with st.spinner("Verifying your Canvas courses and saving baseline..."):
-            try:
-                user = register_user(token_input, db_path=DB_PATH)
-                run_watcher(user_id=user["user_id"], canvas_token=user["canvas_token"], db_path=DB_PATH)
-                st.session_state.user = get_user(user["user_id"], db_path=DB_PATH)
-                st.query_params["uid"] = user["user_id"]
+    with tab_setup:
+        st.markdown("""
+        **Connect your FGCU Canvas in 60 seconds:**
+        1. **[Tap here to open FGCU Canvas Settings](https://fgcu.instructure.com/profile/settings)** and log in.
+        2. Scroll to **Approved Integrations** and tap **+ New Access Token**.
+        3. Set Purpose to `Clockwise`, tap **Generate Token**, and paste it below.
+        *(Generating a new token later will automatically reconnect to your existing history!)*
+        """)
+        token_input = st.text_input("Canvas Access Token", type="password", placeholder="Paste your Canvas token...")
+        pin_input = st.text_input("Create a 4-Digit PIN (for quick login on other devices)", max_chars=4, type="password", placeholder="e.g. 1234")
+
+        if st.button("Connect Canvas", type="primary", use_container_width=True):
+            if not token_input or len(pin_input.strip()) < 4:
+                st.warning("Please enter your Canvas token and a 4-digit PIN.")
+            else:
+                with st.spinner("Verifying your Canvas profile and syncing courses..."):
+                    try:
+                        profile = fetch_user_profile(token_input.strip())
+                        user = register_user(
+                            canvas_token=token_input.strip(),
+                            pin=pin_input.strip(),
+                            canvas_uid=profile["canvas_uid"],
+                            display_name=profile["name"],
+                            db_path=DB_PATH
+                        )
+                        run_watcher(user_id=user["user_id"], canvas_token=user["canvas_token"], db_path=DB_PATH)
+                        st.session_state.user = get_user(user["user_id"], db_path=DB_PATH)
+                        st.session_state.logged_out = False
+                        st.session_state.pending_cookie = user["session_secret"]
+                        st.rerun()
+                    except Exception:
+                        st.error("Could not verify token with Canvas. Please check your token and try again.")
+
+    with tab_login:
+        st.caption("Already connected before? Enter your Canvas display name and 4-digit PIN.")
+        name_login = st.text_input("Your Canvas Name", placeholder="e.g. John Doe")
+        pin_login = st.text_input("4-Digit PIN", max_chars=4, type="password")
+        if st.button("Log In", type="primary", use_container_width=True):
+            found = authenticate_by_pin(name_login, pin_login, db_path=DB_PATH)
+            if found:
+                st.session_state.user = found
+                st.session_state.logged_out = False
+                st.session_state.pending_cookie = found["session_secret"]
                 st.rerun()
-            except Exception as e:
-                st.error("Could not connect to Canvas. Please double-check your token and internet connection.")
+            else:
+                st.error("No matching account found. Check your name/PIN or use the 'New Token' tab to reset.")
     st.stop()
 
 # --- SCREEN 2: MINIMAL CHAT & NOTIFICATION INTERFACE ---
 user = st.session_state.user
 user_id = user["user_id"]
 
-# Status bar & collapsible settings
 col1, col2 = st.columns([3, 1])
 with col1:
     sync_status = user.get("last_sync_status") or "ok"
     if str(sync_status).startswith("error"):
-        st.caption("⚠️ Last daily Canvas sync encountered a connection issue — will retry automatically.")
+        st.caption("⚠️ Last daily Canvas sync had a connection issue — will retry automatically.")
     else:
-        st.caption(f"✅ Connected • Push topic: `{user['ntfy_topic']}`")
+        st.caption(f"👋 Hi **{user['display_name']}** • Push topic: `{user['ntfy_topic']}`")
 with col2:
     if st.button("🔄 Refresh", use_container_width=True):
         with st.spinner("Checking Canvas..."):
@@ -72,7 +121,7 @@ with col2:
             except Exception:
                 st.toast("Connection error while checking Canvas.", icon="⚠️")
 
-with st.expander("🔔 Push Notifications & Schedule"):
+with st.expander("🔔 Push Notifications, Schedule & Account"):
     st.markdown(f"**Phone Alerts:** Install the free **ntfy** app and subscribe to `{user['ntfy_topic']}`.")
     pref = get_memory("triage_preference", default="concise", db_path=DB_PATH, user_id=user_id)
     new_pref = st.segmented_control("Alert Style", options=["concise", "all", "urgent_only"], default=pref)
@@ -80,13 +129,17 @@ with st.expander("🔔 Push Notifications & Schedule"):
         set_memory("triage_preference", new_pref, db_path=DB_PATH, user_id=user_id)
         st.rerun()
     st.text(get_memory("latest_report", default="No upcoming assignments.", db_path=DB_PATH, user_id=user_id))
+    if st.button("Log out on this device"):
+        set_browser_cookie("cw_session", "", days=-1)
+        st.session_state.user = None
+        st.session_state.logged_out = True
+        st.rerun()
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Hi! I'm monitoring your Canvas deadlines daily. Ask me what's due soon or how to adjust your alerts."}
+        {"role": "assistant", "content": f"Hi {user['display_name']}! I'm monitoring your Canvas deadlines daily. Ask me what's due soon or how to adjust your alerts."}
     ]
 
-# Consume any unread notifications from Watcher Agent
 for handoff in consume_handoffs(db_path=DB_PATH, user_id=user_id):
     res = process_handoff(handoff, db_path=DB_PATH, user_id=user_id, ntfy_topic=user["ntfy_topic"])
     st.session_state.messages.append({

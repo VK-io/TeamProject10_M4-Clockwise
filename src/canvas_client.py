@@ -19,6 +19,18 @@ def get_headers(token: Optional[str] = None) -> Dict[str, str]:
     }
 
 
+def fetch_user_profile(token: Optional[str] = None) -> Dict[str, Any]:
+    """Fetches the student's permanent Canvas user ID and name."""
+    endpoint = f"{BASE_URL}/api/v1/users/self"
+    response = requests.get(endpoint, headers=get_headers(token), timeout=15)
+    response.raise_for_status()
+    data = response.json()
+    return {
+        "canvas_uid": str(data["id"]),
+        "name": data.get("short_name") or data.get("name") or "Student"
+    }
+
+
 def _get_paginated(url: str, token: Optional[str] = None) -> List[Dict[str, Any]]:
     results = []
     headers = get_headers(token)

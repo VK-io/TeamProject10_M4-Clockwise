@@ -78,12 +78,22 @@ def init_db(db_path: str = DB_PATH):
     _exec("""
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
+            display_name TEXT,
             canvas_token TEXT NOT NULL,
+            pin_hash TEXT,
+            session_secret TEXT,
             ntfy_topic TEXT NOT NULL,
             last_sync_at TEXT,
             last_sync_status TEXT
         )
     """, db_path=db_path)
+    # Safe column migration if the table was already created in Step 2
+    for col in ("display_name TEXT", "pin_hash TEXT", "session_secret TEXT"):
+        try:
+            _exec(f"ALTER TABLE users ADD COLUMN {col}", db_path=db_path)
+        except Exception:
+            pass
+
     _exec("""
         CREATE TABLE IF NOT EXISTS assignments_snapshot (
             user_id TEXT NOT NULL DEFAULT 'default',
@@ -119,29 +129,90 @@ def init_db(db_path: str = DB_PATH):
     """, db_path=db_path)
 
 
-def register_user(canvas_token: str, db_path: str = DB_PATH) -> Dict[str, str]:
+def _hash(val: str) -> str:
+    return hashlib.sha256(val.strip().encode("utf-8")).hexdigest()
+
+
+def register_user(
+    canvas_token: str,
+    pin: str = "0000",
+    canvas_uid: Optional[str] = None,
+    display_name: str = "Student",
+    db_path: str = DB_PATH
+) -> Dict[str, str]:
+    """
+    Registers or updates a student profile keyed by their permanent Canvas numeric ID.
+    Generating a new token reconnects to the same user_id and assignment history.
+    """
     init_db(db_path)
     clean_token = canvas_token.strip()
-    user_id = hashlib.sha256(clean_token.encode("utf-8")).hexdigest()[:12]
-    ntfy_topic = f"clockwise_fgcu_{user_id[:8]}"
+    user_id = f"canvas_{canvas_uid}" if canvas_uid else _hash(clean_token)[:12]
+    pin_hash = _hash(pin)
+    session_secret = _hash(f"{user_id}:{pin_hash}:{clean_token[:6]}")[:32]
+    ntfy_topic = f"clockwise_fgcu_{_hash(user_id)[:8]}"
+
     _exec("""
-        INSERT INTO users (user_id, canvas_token, ntfy_topic, last_sync_status)
-        VALUES (?, ?, ?, 'pending')
-        ON CONFLICT(user_id) DO UPDATE SET canvas_token = excluded.canvas_token
-    """, (user_id, clean_token, ntfy_topic), db_path=db_path)
-    return {"user_id": user_id, "canvas_token": clean_token, "ntfy_topic": ntfy_topic}
+        INSERT INTO users (user_id, display_name, canvas_token, pin_hash, session_secret, ntfy_topic, last_sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        ON CONFLICT(user_id) DO UPDATE SET
+            display_name = excluded.display_name,
+            canvas_token = excluded.canvas_token,
+            pin_hash = excluded.pin_hash,
+            session_secret = excluded.session_secret
+    """, (user_id, display_name.strip(), clean_token, pin_hash, session_secret, ntfy_topic), db_path=db_path)
+
+    return {
+        "user_id": user_id,
+        "display_name": display_name.strip(),
+        "canvas_token": clean_token,
+        "session_secret": session_secret,
+        "ntfy_topic": ntfy_topic
+    }
+
+
+def _row_to_user(r: Tuple) -> Dict[str, str]:
+    return {
+        "user_id": r[0],
+        "display_name": r[1] or "Student",
+        "canvas_token": r[2],
+        "session_secret": r[3],
+        "ntfy_topic": r[4],
+        "last_sync_at": r[5],
+        "last_sync_status": r[6]
+    }
 
 
 def get_user(user_id: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
     init_db(db_path)
     rows = _exec(
-        "SELECT user_id, canvas_token, ntfy_topic, last_sync_at, last_sync_status FROM users WHERE user_id = ?",
+        "SELECT user_id, display_name, canvas_token, session_secret, ntfy_topic, last_sync_at, last_sync_status FROM users WHERE user_id = ?",
         (user_id,), db_path=db_path
     )
-    if not rows:
+    return _row_to_user(rows[0]) if rows else None
+
+
+def get_user_by_session(session_secret: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
+    """Authenticates a device automatically via its first-party browser cookie."""
+    if not session_secret:
         return None
-    r = rows[0]
-    return {"user_id": r[0], "canvas_token": r[1], "ntfy_topic": r[2], "last_sync_at": r[3], "last_sync_status": r[4]}
+    init_db(db_path)
+    rows = _exec(
+        "SELECT user_id, display_name, canvas_token, session_secret, ntfy_topic, last_sync_at, last_sync_status FROM users WHERE session_secret = ?",
+        (session_secret.strip(),), db_path=db_path
+    )
+    return _row_to_user(rows[0]) if rows else None
+
+
+def authenticate_by_pin(display_name: str, pin: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
+    """Allows returning users to log in on any device using their Name + 4-digit PIN."""
+    init_db(db_path)
+    pin_hash = _hash(pin)
+    rows = _exec(
+        "SELECT user_id, display_name, canvas_token, session_secret, ntfy_topic, last_sync_at, last_sync_status "
+        "FROM users WHERE LOWER(display_name) = LOWER(?) AND pin_hash = ?",
+        (display_name.strip(), pin_hash), db_path=db_path
+    )
+    return _row_to_user(rows[0]) if rows else None
 
 
 def list_all_users(db_path: str = DB_PATH) -> List[Dict[str, str]]:
