@@ -2,9 +2,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from src.canvas_client import fetch_user_profile
+from src.canvas_client import BASE_URL, get_headers
 from src.watcher import run_watcher
 from src.chat_agent import process_handoff, handle_user_chat
 from src.state import (
@@ -24,8 +25,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def fetch_user_profile(token: str) -> dict:
+    """Fetches the student's permanent Canvas user ID and display name directly."""
+    resp = requests.get(f"{BASE_URL}/api/v1/users/self", headers=get_headers(token), timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    return {
+        "canvas_uid": str(data["id"]),
+        "name": data.get("short_name") or data.get("name") or "Student"
+    }
+
+
 def set_browser_cookie(name: str, value: str, days: int = 365):
-    """Writes a persistent first-party cookie to the user's mobile/desktop browser."""
+    """Writes a persistent first-party cookie to the user's mobile or desktop browser."""
     max_age = days * 86400
     components.html(
         f"<script>parent.document.cookie = '{name}={value}; path=/; max-age={max_age}; SameSite=Lax';</script>",
@@ -103,6 +115,7 @@ if not st.session_state.user:
 # --- SCREEN 2: MINIMAL CHAT & NOTIFICATION INTERFACE ---
 user = st.session_state.user
 user_id = user["user_id"]
+display_name = user.get("display_name") or "Student"
 
 col1, col2 = st.columns([3, 1])
 with col1:
@@ -110,7 +123,7 @@ with col1:
     if str(sync_status).startswith("error"):
         st.caption("⚠️ Last daily Canvas sync had a connection issue — will retry automatically.")
     else:
-        st.caption(f"👋 Hi **{user['display_name']}** • Push topic: `{user['ntfy_topic']}`")
+        st.caption(f"👋 Hi **{display_name}** • Push topic: `{user['ntfy_topic']}`")
 with col2:
     if st.button("🔄 Refresh", use_container_width=True):
         with st.spinner("Checking Canvas..."):
@@ -137,7 +150,7 @@ with st.expander("🔔 Push Notifications, Schedule & Account"):
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": f"Hi {user['display_name']}! I'm monitoring your Canvas deadlines daily. Ask me what's due soon or how to adjust your alerts."}
+        {"role": "assistant", "content": f"Hi {display_name}! I'm monitoring your Canvas deadlines daily. Ask me what's due soon or how to adjust your alerts."}
     ]
 
 for handoff in consume_handoffs(db_path=DB_PATH, user_id=user_id):
