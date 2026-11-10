@@ -1,46 +1,97 @@
-# Clockwise — Canvas Deadline Change Agent
+# ⏰ Clockwise — Multi-Agent Canvas Deadline Assistant
 
-## 1. Problem Addressed
-Clockwise prevents students from missing coursework caused by post-syllabus schedule shifts by monitoring Canvas course feeds and surfacing assignment changes rather than static task snapshots.
+Clockwise is a multi-agent academic assistant for FGCU students that monitors Canvas assignments daily, sends push notifications when deadlines change or unsubmitted assignments are due within 3 days or 24 hours, and provides a conversational AI advisor strictly scoped to your coursework.
 
-## 2. Current Capabilities
-- **Multi-Agent Architecture:** Splits execution between a backend `WatcherAgent` (`src/watcher.py`) that polls Canvas and diffs snapshots, and a frontend `ChatAgent` (`src/chat_agent.py`) that triages handoffs and answers student queries.
-- **Explicit Handoff:** `WatcherAgent` serializes a structured `HandoffPayload` into SQLite (`handoff_queue`) consumed by `ChatAgent` only when `NEW` or `DUE_DATE_MOVED` events occur.
-- **Reasoning Pattern (ReAct):** `ChatAgent` executes a structured `THOUGHT` -> `ACTION_MEMORY` -> `ANSWER` reasoning trace before composing digests or updating settings.
-- **Persistent Memory Layer:** Stores student notification preferences (`concise`, `all`, `urgent_only`), latest digests, and 14-day schedules in SQLite (`user_memory`).
-- **Role Guardrails:** Enforces pre-LLM regex filtering and strict system prompt boundaries so the agent refuses off-topic queries outside of Canvas coursework.
-- **Localhost Web UI & Push Alerts:** Provides a Streamlit chatbox interface (`src/app.py`) with toast alerts and optional `ntfy.sh` mobile push notifications.
+---
 
-## 3. CHANGES (M2 → M3)
-- Refactored monolithic `src/agent.py` into a two-agent architecture (`src/watcher.py` and `src/chat_agent.py`) connected via an explicit `HandoffPayload` queue in `src/state.py`.
-- Added a ReAct/Chain-of-Thought reasoning pattern with inspectable reasoning traces in `src/chat_agent.py`.
-- Implemented a persistent SQLite memory layer (`user_memory` table) to store user notification thresholds and schedule state across sessions.
-- Added dual-layer input/system guardrails restricting the agent strictly to Canvas assignments and deadlines.
-- Built a localhost Streamlit web application (`src/app.py`) supporting interactive chat and real-time change notifications.
+## 🌐 Option 1: Use the Live Cloud App (For Student Testers)
 
-## 4. Setup and Execution
-1. Clone the repository and establish a virtual environment:
-   ```bash
-   python -m venv venv
-   # On macOS/Linux:
-   source venv/bin/activate
-   # On Windows (Git Bash):
-   source venv/Scripts/activate
-   pip install -r requirements.txt
-   ```
-2. Execute locally:
-    ```bash
-    # Launch the Streamlit Localhost Web App (Chatbox + Notifications)
-    streamlit run src/app.py
+You do not need to install any code to use Clockwise.
 
-    # CLI Mode (Offline using /tests/fixtures or Live via Canvas API)
-    python -m src.agent --offline
-    python -m src.agent
+### 1. Open the App & Add to Home Screen
+1. Open the live app on your phone or browser: **`https://YOUR-STREAMLIT-APP-URL.streamlit.app`** *(replace with your live URL)*
+2. **Optional (Install as Mobile App):**
+   * **iOS (Safari):** Tap the **Share** icon → **Add to Home Screen**.
+   * **Android (Chrome):** Tap the **3-dot menu** → **Add to Home screen**.
 
-    # Run Automated Test Suite
-    python -m pytest
-    ```
-## 5. Known Limitations
-- Assignments lacking an explicit due_at timestamp are bypassed during timeline diff calculations.
-- Self-service Canvas API token creation depends on institution-level policy and cannot be generated programmatically if disabled by FGCU.
-- Rapid assignment metadata updates that occur between polling cycles only capture the net difference between snapshots, omitting intermediate changes.
+### 2. First-Time Account Setup (60 Seconds)
+1. Select the **✨ First-Time / New Token** tab.
+2. Tap the link to open **[FGCU Canvas Settings](https://fgcu.instructure.com/profile/settings)** and log in.
+3. Scroll down to **Approved Integrations** and tap **+ New Access Token**.
+4. Set the Purpose to `Clockwise`, tap **Generate Token**, and copy the token.
+5. Paste the token into Clockwise, choose a **4-Digit PIN**, and tap **Connect Canvas**.
+
+### 3. Returning Log-In & Token Recovery
+* **Same Device:** Your browser automatically remembers your session via a secure first-party cookie.
+* **New Device / Returning User:** Open the **🔑 Returning User (PIN)** tab and enter your **Canvas Display Name** (e.g., `John Doe`) + your **4-Digit PIN**.
+* **Lost or Expired Token:** Generate a new token in Canvas and submit it on the **First-Time / New Token** tab—Clockwise links accounts by your permanent Canvas ID, so your assignment history and preferences stay intact.
+
+### 4. Enable Lock-Screen Push Notifications
+1. Once logged in, expand **🔔 Push Notifications, Schedule & Account** at the top of the app to view your personal push topic (e.g., `clockwise_fgcu_a1b2c3d4`).
+2. Install the free **ntfy** app ([iOS App Store](https://apps.apple.com/us/app/ntfy/id1625396347) / [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy)).
+3. Tap **`+`** in the ntfy app and subscribe to your personal topic name.
+
+---
+
+## 💻 Option 2: Run Locally on Your Machine (For Developers & Grading)
+
+### 1. Clone & Install Dependencies
+
+```bash
+git clone <YOUR_REPO_URL>
+cd clockwise
+python -m venv .venv
+
+# Windows (Git Bash)
+source .venv/Scripts/activate
+# macOS / Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment Variables (`.env`)
+Create a `.env` file in the project root directory:
+
+```env
+# Required for AI Chat & Triage Digest
+NRP_BASE_URL=[https://ellm.nrp-nautilus.io/v1](https://ellm.nrp-nautilus.io/v1)
+NRP_API_KEY=your_nrp_api_key_here
+NRP_MODEL=gpt-oss
+
+# Optional: For CLI / Local Canvas Polling
+CANVAS_BASE_URL=[https://fgcu.instructure.com](https://fgcu.instructure.com)
+CANVAS_TOKEN=your_canvas_access_token_here
+
+# Optional: Leave blank to use local SQLite (clockwise.db), or set for Turso Cloud DB
+TURSO_DATABASE_URL=
+TURSO_AUTH_TOKEN=
+```
+
+*(Note: If `TURSO_DATABASE_URL` is left blank, Clockwise automatically creates and uses a local `clockwise.db` SQLite file).*
+
+### 3. Launch the Web App Locally
+
+```bash
+streamlit run src/app.py
+```
+
+Open **`http://localhost:8501`** in your browser.
+
+### 4. Run Automated Tests & Daily Watcher CLI
+
+```bash
+# Run the test suite (uses isolated local SQLite + offline fixtures)
+python -m pytest
+
+# Poll Canvas for all registered users from the command line
+python -m src.watcher --all-users
+```
+
+---
+
+## 🏗️ System Architecture
+
+* **Agent 1 — Backend Watcher (`src/watcher.py`):** Polls the Canvas REST API, diffs assignments against `assignments_snapshot`, and enqueues a `HandoffPayload` into `handoff_queue` only when `NEW`, `DUE_DATE_MOVED`, `REMINDER_3_DAY` (within 72h unsubmitted), or `REMINDER_1_DAY` (within 24h unsubmitted) triggers occur.
+* **Agent 2 — Frontend Chat & Advisor (`src/chat_agent.py`):** Consumes handoffs using a ReAct loop (`THOUGHT` / `ACTION_MEMORY` / `ANSWER`), sends push notifications via `ntfy.sh`, updates persistent notification preferences (`concise`, `all`, `urgent_only`), and enforces dual-layer input/system guardrails.
+* **Persistent Memory Layer (`src/state.py` & `src/mcp_server.py`):** Multi-tenant SQLite / Turso state storing assignment baselines, user preferences, and MCP tool bindings.
