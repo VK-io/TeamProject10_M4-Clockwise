@@ -1,0 +1,56 @@
+[
+  {
+    "id": 501,
+    "course_id": 101,
+    "name": "Milestone 2: Prototype & Architecture",
+    "due_at": "2026-10-15T23:59:59Z",
+    "updated_at": "2026-10-01T14:20:00Z",
+    "html_url": "https://fgcu.instructure.com/courses/101/assignments/501",
+    "points_possible": 100.0
+  },
+  {
+    "id": 502,
+    "course_id": 101,
+    "name": "User Interview Synthesis Paper",
+    "due_at": "2026-10-18T23:59:59Z",
+    "updated_at": "2026-10-02T09:15:30Z",
+    "html_url": "https://fgcu.instructure.com/courses/101/assignments/502",
+    "points_possible": 50.0
+  },
+  {
+    "id": 503,
+    "course_id": 102,
+    "name": "Homework 4: Relational Schema & Normalization",
+    "due_at": "2026-10-20T17:00:00Z",
+    "updated_at": "2026-09-28T11:00:00Z",
+    "html_url": "https://fgcu.instructure.com/courses/102/assignments/503",
+    "points_possible": 40.0
+  },
+  {
+    "id": 504,
+    "course_id": 102,
+    "name": "Midterm Examination",
+    "due_at": "2026-10-22T19:30:00Z",
+    "updated_at": "2026-10-03T16:45:10Z",
+    "html_url": "https://fgcu.instructure.com/courses/102/assignments/504",
+    "points_possible": 150.0
+  },
+  {
+    "id": 505,
+    "course_id": 103,
+    "name": "Entrepreneurial Feasibility Brief",
+    "due_at": "2026-10-25T23:59:59Z",
+    "updated_at": "2026-10-04T08:30:00Z",
+    "html_url": "https://fgcu.instructure.com/courses/103/assignments/505",
+    "points_possible": 75.0
+  },
+  {
+    "id": 506,
+    "course_id": 103,
+    "name": "Customer Discovery Pitch Deck",
+    "due_at": "2026-10-30T23:59:59Z",
+    "updated_at": "2026-10-05T12:00:00Z",
+    "html_url": "https://fgcu.instructure.com/courses/103/assignments/506",
+    "points_possible": 100.0
+  }
+]

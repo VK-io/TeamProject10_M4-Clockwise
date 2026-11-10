@@ -1,0 +1,32 @@
+name: Daily Canvas Watcher Poll
+
+on:
+  schedule:
+  #Run everyday at 12PM UTC
+  - cron: '0 12 * * *'
+  workflow_dispatch: #Manual mode
+
+jobs:
+  poll-Canvas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Watcher for all registered users
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          NRP_BASE_URL: ${{ secrets.NRP_BASE_URL }}
+          NRP_API_KEY: ${{ secrets.NRP_API_KEY }}
+          NRP_MODEL: ${{ secrets.NRP_MODEL }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: python -m src.watcher --all-users

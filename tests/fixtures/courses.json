@@ -1,0 +1,17 @@
+[
+  {
+    "id": 101,
+    "name": "AI Agent Studio - CEN 4930",
+    "course_code": "CEN4930"
+  },
+  {
+    "id": 102,
+    "name": "Database Systems - COP 3710",
+    "course_code": "COP3710"
+  },
+  {
+    "id": 103,
+    "name": "New Venture Creation - ENT 3003",
+    "course_code": "ENT3003"
+  }
+]
