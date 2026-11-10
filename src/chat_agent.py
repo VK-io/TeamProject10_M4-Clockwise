@@ -1,9 +1,8 @@
-import os
 import re
 import json
 import requests
 from typing import Dict, Any, Tuple, Optional
-from src.state import get_memory, set_memory, DB_PATH
+from src.state import get_memory, set_memory, _get_secret, DB_PATH
 
 SYSTEM_GUARDRAIL = """You are Clockwise (Frontend Advisor Agent), an AI assistant strictly scoped to the student's Canvas courses, assignments, deadlines, and notification preferences.
 
@@ -44,10 +43,10 @@ def _parse_react_output(raw_output: str) -> Tuple[str, str, str]:
 
 
 def send_push_notification(message: str, topic: Optional[str] = None) -> bool:
-    target_topic = (topic or os.getenv("NTFY_TOPIC", "")).strip()
+    target_topic = (topic or _get_secret("NTFY_TOPIC", "")).strip()
     if not target_topic:
         return False
-    app_url = os.getenv("APP_URL", "")
+    app_url = _get_secret("APP_URL", "")
     headers = {"Title": "Clockwise Canvas Alert"}
     if app_url:
         headers["Click"] = app_url

@@ -4,27 +4,45 @@ import json
 import hashlib
 import requests
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 from src.report import parse_due
 
-# Explicitly load .env from the project root directory
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 DB_PATH = "clockwise.db"
 
+
+def _get_secret(key: str, default: str = None) -> str:
+    val = os.getenv(key)
+    if val:
+        return val
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        pass
+    return default
+
+
 def _use_turso(db_path: str) -> bool:
-    return db_path == DB_PATH and bool(os.getenv("TURSO_DATABASE_URL")) and bool(os.getenv("TURSO_AUTH_TOKEN"))
+    return (
+        db_path == DB_PATH
+        and bool(_get_secret("TURSO_DATABASE_URL"))
+        and bool(_get_secret("TURSO_AUTH_TOKEN"))
+    )
 
 
 def _exec(sql: str, params: Tuple = (), db_path: str = DB_PATH) -> List[Tuple]:
     """Executes SQL against Turso HTTP API in cloud mode or local SQLite in local/test mode."""
     if _use_turso(db_path):
-        url = os.getenv("TURSO_DATABASE_URL").replace("libsql://", "https://").rstrip("/") + "/v2/pipeline"
+        raw_url = _get_secret("TURSO_DATABASE_URL")
+        token = _get_secret("TURSO_AUTH_TOKEN")
+        url = raw_url.replace("libsql://", "https://").rstrip("/") + "/v2/pipeline"
         headers = {
-            "Authorization": f"Bearer {os.getenv('TURSO_AUTH_TOKEN')}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
         args = []
@@ -205,7 +223,6 @@ def compute_diff_and_update(
                 })
                 rem_3d, rem_1d = 0, 0
 
-        # Check 3-day (<=72h) and 1-day (<=24h) unsubmitted reminders
         due_dt = parse_due(due_at)
         if due_dt and graded and not submitted:
             hours_left = (due_dt - now_dt).total_seconds() / 3600.0
