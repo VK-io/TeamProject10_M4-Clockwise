@@ -54,7 +54,11 @@ if "user" not in st.session_state:
 if st.session_state.user is None and not st.session_state.get("logged_out"):
     cookie_token = st.context.cookies.get("cw_session")
     if cookie_token:
-        st.session_state.user = get_user_by_session(cookie_token, db_path=DB_PATH)
+        try:
+            st.session_state.user = get_user_by_session(cookie_token, db_path=DB_PATH)
+        except Exception:
+            st.warning("Temporary connection issue. Please refresh the page or try again later!")
+            st.stop()
 
 # Write pending cookie if user just logged in
 if st.session_state.get("pending_cookie"):
@@ -153,12 +157,15 @@ if "messages" not in st.session_state:
         {"role": "assistant", "content": f"Hi {display_name}! I'm monitoring your Canvas deadlines daily. Ask me what's due soon or how to adjust your alerts."}
     ]
 
-for handoff in consume_handoffs(db_path=DB_PATH, user_id=user_id):
-    res = process_handoff(handoff, db_path=DB_PATH, user_id=user_id, ntfy_topic=user["ntfy_topic"])
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": f"🔔 **Canvas Update**\n\n{res['digest']}"
-    })
+try: 
+    for handoff in consume_handoffs(db_path=DB_PATH, user_id=user_id):
+        res = process_handoff(handoff, db_path=DB_PATH, user_id=user_id, ntfy_topic=user["ntfy_topic"])
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": f"🔔 **Canvas Update**\n\n{res['digest']}"
+        })
+except Exception:
+    pass
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -171,6 +178,10 @@ if prompt := st.chat_input("Ask about your assignments or due dates..."):
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            reply = handle_user_chat(prompt, db_path=DB_PATH, user_id=user_id)
+            try: 
+                reply = handle_user_chat(prompt, db_path=DB_PATH, user_id=user_id)
+                answer = reply["answer"]
+            except Exception: 
+                answer = "I'm having trouble with the server right now, please try again later!"
             st.markdown(reply["answer"])
             st.session_state.messages.append({"role": "assistant", "content": reply["answer"]})
