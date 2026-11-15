@@ -30,3 +30,13 @@ jobs:
           NRP_MODEL: ${{ secrets.NRP_MODEL }}
           APP_URL: ${{ secrets.APP_URL }}
         run: python -m src.watcher --all-users
+
+      - name: Ping Streamlit to prevent sleep
+        if: always()
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [-n "$APP_URL"]; then
+            curl -s -L "$APP_URL" > /dev/null || true
+          fi
+      
