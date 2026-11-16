@@ -2,8 +2,8 @@ name: Daily Canvas Watcher Poll
 
 on:
   schedule:
-  #Run everyday at 12PM UTC
-  - cron: '0 12 * * *'
+  #Run every 6 hours
+  - cron: '0 */6 * * *'
   workflow_dispatch: #Manual mode
 
 jobs:
@@ -11,17 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
+        if: github.event.schedule == '0 12 * * *' || github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: github.event.schedule == '0 12 * * *' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
       - name: Install dependencies
+        if: github.event.schedule == '0 12 * * *' || github.event_name == 'workflow_dispatch'
         run: pip install -r requirements.txt
 
       - name: Run Watcher for all registered users
+        if: github.event.schedule == '0 12 * * *' || github.event_name == 'workflow_dispatch'
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
