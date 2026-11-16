@@ -77,12 +77,16 @@ def process_handoff(
     pref = get_memory("triage_preference", default="concise", db_path=db_path, user_id=user_id)
 
     prompt = (
-        f"Student Notification Preference (from Memory): {pref}\n"
-        f"Detected Canvas events (NEW, DUE_DATE_MOVED, REMINDER_3_DAY, REMINDER_1_DAY):\n{json.dumps(triggers, indent=2)}\n\n"
-        "Draft a clear 2-3 sentence notification summarizing these alerts for a busy student. "
-        "Refer to courses by course_name. Explicitly label items as NEW, CHANGED (with old -> new date), "
-        "or DUE SOON (for 3-day or 1-day reminders), and say PAST DUE for any item where past_due is true. "
-        "Only describe the listed changes; do not make claims about any other assignments."
+        f"Student Notification Preference: {pref}\n"
+        f"Canvas Events:\n{json.dumps(triggers, indent=2)}\n\n"
+        "Format a clean, easy-to-scan mobile notification using short bullet points (one line per item, max 12 words per line).\n"
+        "Use this exact structure for each bullet:\n"
+        "• [NEW] Short Course Name: Assignment — Due Date\n"
+        "• [CHANGED] Short Course Name: Assignment — Now due New Date\n"
+        "• [DUE SOON] Short Course Name: Assignment — Due Date\n"
+        "• [PAST DUE] Short Course Name: Assignment — Due Date\n"
+        "Shorten long course names (e.g. 'Software Engineering' instead of 'CEN-3031-12345 Software Engineering'). "
+        "Do not include intro or outro filler text."
     )
 
     raw_response = llm_fn(prompt)
