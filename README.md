@@ -9,7 +9,7 @@ Clockwise is a multi-agent academic assistant for FGCU students that monitors Ca
 You do not need to install any code to use Clockwise.
 
 ### 1. Open the App & Add to Home Screen
-1. Open the live app on your phone or browser: **`https://YOUR-STREAMLIT-APP-URL.streamlit.app`** *(replace with your live URL)*
+1. Open the live app on your phone or browser: **`https://project-clockwise.streamlit.app/`**
 2. **Optional (Install as Mobile App):**
    * **iOS (Safari):** Tap the **Share** icon → **Add to Home Screen**.
    * **Android (Chrome):** Tap the **3-dot menu** → **Add to Home screen**.
