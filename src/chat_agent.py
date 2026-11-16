@@ -85,6 +85,7 @@ def process_handoff(
         "• [CHANGED] Short Course Name: Assignment — Now due New Date\n"
         "• [DUE SOON] Short Course Name: Assignment — Due Date\n"
         "• [PAST DUE] Short Course Name: Assignment — Due Date\n"
+        "For Due Date, DO NOT include the day of the week, hours and minutes (e.g. 'MM/DD' instead of 'Mon Nov 04:59 AM').\n"
         "Shorten long course names (e.g. 'Software Engineering' instead of 'CEN-3031-12345 Software Engineering'). "
         "Do not include intro or outro filler text."
     )
