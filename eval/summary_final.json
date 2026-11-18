@@ -1,0 +1,14 @@
+{
+  "label": "final",
+  "mode": "live",
+  "run_at": "2026-11-18T21:07:24.861559+00:00",
+  "model": "gpt-oss",
+  "core_passed": 8,
+  "core_total": 10,
+  "pass_rate": 80.0,
+  "critical_cases_all_pass": true,
+  "critic_mean": 3.8,
+  "meets_threshold": false,
+  "supplementary_passed": 3,
+  "supplementary_total": 3
+}

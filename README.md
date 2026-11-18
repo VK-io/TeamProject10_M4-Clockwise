@@ -115,6 +115,8 @@ All changes below were made after M3 (Oct 28) and are in this repo's commit hist
 
 **Totals:** unit tests 14 → 22 (all pass). Mock eval core 9/10 → **10/10**, supplementary 0/3 → **3/3**, meets the M3 threshold.
 
+**Live run (real gpt-oss + critic, `eval/results_final.*`):** 8/10 core, all critical cases pass, 3/3 supplementary, critic mean 3.8. TC03 (3.8) and TC04 (3.6) miss the 4.0 critic bar because the digest prompt drops due times and shortens course names; the live run does not yet meet the M3 threshold.
+
 **Run the evaluation:**
 ```bash
 python -m pytest                                  # 22 tests
