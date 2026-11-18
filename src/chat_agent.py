@@ -1,7 +1,7 @@
 import re
 import json
 import requests
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional
 from src.state import get_memory, set_memory, _get_secret, DB_PATH
 
 SYSTEM_GUARDRAIL = """You are Clockwise (Frontend Advisor Agent), an AI assistant strictly scoped to the student's Canvas courses, assignments, deadlines, and notification preferences.
@@ -17,12 +17,52 @@ ACTION_MEMORY: (Optional) Write SET_PREF=all, SET_PREF=concise, or SET_PREF=urge
 ANSWER: Your concise, helpful response to the student (2-3 sentences max).
 """
 
+# "bitcoin" and "stock market" were removed: they appear in real course titles and caused wrongful
+# refusals. The system prompt still refuses those topics when they are off-topic.
 OFF_TOPIC_PATTERNS = re.compile(
-    r"\b(ignore previous instructions|write an essay|write a poem|recipe for|capital of|solve this equation|who won the|bitcoin|stock market)\b",
+    r"\b(ignore (all )?previous instructions|write an essay|write a poem|recipe for|capital of|solve this equation|who won the)\b",
     re.IGNORECASE
 )
 
 GUARDRAIL_REFUSAL = "I can only help with your Canvas assignments, deadlines, and notification settings."
+
+ALLOWED_PREFS = ("all", "concise", "urgent_only")
+
+_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+_WORD_DATE = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b", re.IGNORECASE)
+_SLASH_DATE = re.compile(r"\b(\d{1,2})/(\d{1,2})\b")
+
+
+def _dates_in(text: str) -> set:
+    found = {(_MONTHS.index(m.group(1)[:3].lower()) + 1, int(m.group(2))) for m in _WORD_DATE.finditer(text or "")}
+    found |= {(int(a), int(b)) for a, b in _SLASH_DATE.findall(text or "") if 1 <= int(a) <= 12}
+    return found
+
+
+def dates_grounded(digest: str, triggers: List[Dict[str, Any]]) -> bool:
+    """Every date the digest mentions must come from the WatcherAgent payload."""
+    allowed = set()
+    for t in triggers:
+        for key in ("due_at", "old_due_at", "new_due_at"):
+            allowed |= _dates_in(t.get(key) or "")
+    return _dates_in(digest) <= allowed
+
+
+def deterministic_digest(triggers: List[Dict[str, Any]]) -> str:
+    """Template digest built only from payload fields, used when model output is empty or ungrounded."""
+    lines = []
+    for t in triggers:
+        where = f"{t.get('course_name', t['course_id'])}: {t['name']}"
+        if t["event_type"] == "DUE_DATE_MOVED":
+            line = f"• [CHANGED] {where} — Now due {t.get('new_due_at')} (was {t.get('old_due_at')})"
+        elif t["event_type"] == "NEW":
+            line = f"• [NEW] {where} — Due {t.get('due_at')}"
+        else:
+            line = f"• [DUE SOON] {where} — Due {t.get('due_at')}"
+        if t.get("past_due"):
+            line += " — PAST DUE"
+        lines.append(line)
+    return "\n".join(lines) or "No deadline changes detected."
 
 
 def _parse_react_output(raw_output: str) -> Tuple[str, str, str]:
@@ -90,8 +130,22 @@ def process_handoff(
         "Do not include intro or outro filler text."
     )
 
-    raw_response = llm_fn(prompt)
+    thought_note = None
+    try:
+        raw_response = llm_fn(prompt) or ""
+    except Exception as e:
+        raw_response = ""
+        thought_note = f"LLM call failed ({type(e).__name__}); used template digest."
     thought, _, digest = _parse_react_output(raw_response)
+
+    if not digest.strip():
+        thought = thought_note or "Model returned an empty answer; used template digest."
+        digest = deterministic_digest(triggers)
+    elif not dates_grounded(digest, triggers):
+        thought = f"Model digest mentioned a date not in the payload; replaced with template digest. Model said: {digest!r}"
+        digest = deterministic_digest(triggers)
+    elif any(t.get("past_due") for t in triggers) and "past due" not in digest.lower():
+        digest += "\n" + "\n".join(f"• {t['name']} is PAST DUE" for t in triggers if t.get("past_due"))
 
     set_memory("last_digest", digest, db_path=db_path, user_id=user_id)
     send_push_notification(digest, topic=ntfy_topic)
@@ -139,8 +193,16 @@ def handle_user_chat(
     thought, action, answer = _parse_react_output(raw_response)
 
     if action.startswith("SET_PREF="):
-        new_pref = action.split("=", 1)[1].strip()
-        set_memory("triage_preference", new_pref, db_path=db_path, user_id=user_id)
+        new_pref = action.split("=", 1)[1].strip().lower()
+        if new_pref in ALLOWED_PREFS:
+            set_memory("triage_preference", new_pref, db_path=db_path, user_id=user_id)
+        else:
+            thought = f"Rejected invalid preference {new_pref!r}; allowed: {', '.join(ALLOWED_PREFS)}."
+            answer = (f"I can't set that notification preference. Choose one of: {', '.join(ALLOWED_PREFS)}. "
+                      f"Your preference is still '{pref}'.")
+
+    if not answer.strip():
+        answer = "Sorry, I couldn't generate an answer just now. Please try again."
 
     return {
         "thought": thought or "Evaluated student query against Canvas schedule and memory.",

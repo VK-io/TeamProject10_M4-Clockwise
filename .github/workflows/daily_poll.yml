@@ -2,8 +2,9 @@ name: Daily Canvas Watcher Poll
 
 on:
   schedule:
-  #Run every 6 hours
+  # The 6-hourly entry only pings the app awake; the poll steps are gated on the 12:00 UTC (8 AM ET) entry.
   - cron: '0 */6 * * *'
+  - cron: '0 12 * * *'
   workflow_dispatch: #Manual mode
 
 jobs:
@@ -40,7 +41,7 @@ jobs:
         env:
           APP_URL: ${{ secrets.APP_URL }}
         run: |
-          if [-n "$APP_URL"]; then
+          if [ -n "$APP_URL" ]; then
             curl -s -L "$APP_URL" > /dev/null || true
           fi
       

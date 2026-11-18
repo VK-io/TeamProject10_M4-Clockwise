@@ -183,5 +183,5 @@ if prompt := st.chat_input("Ask about your assignments or due dates..."):
                 answer = reply["answer"]
             except Exception: 
                 answer = "I'm having trouble with the server right now, please try again later!"
-            st.markdown(reply["answer"])
-            st.session_state.messages.append({"role": "assistant", "content": reply["answer"]})
+            st.markdown(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})

@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from src.canvas_client import fetch_active_courses, fetch_course_assignments
 from src.watcher import run_watcher
 from src.state import get_memory, set_memory
+from src.chat_agent import ALLOWED_PREFS
 
 mcp = FastMCP("CanvasMCP")
 
@@ -24,6 +25,9 @@ def get_changes_since_last_run(offline: bool = False) -> Dict[str, Any]:
 @mcp.tool()
 def update_notification_preference(preference: str) -> str:
     """Update student triage preference in memory ('all', 'concise', or 'urgent_only')."""
+    preference = preference.strip().lower()
+    if preference not in ALLOWED_PREFS:
+        return f"Rejected: '{preference}' is not a valid preference. Use one of: {', '.join(ALLOWED_PREFS)}."
     set_memory("triage_preference", preference)
     return f"Preference updated to {preference}"
 

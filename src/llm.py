@@ -41,4 +41,4 @@ def query_nrp(prompt: str, system_prompt: str = "You are a concise academic assi
         ],
         temperature=0.2
     )
-    return response.choices[0].message.content.strip()
+    return (response.choices[0].message.content or "").strip()

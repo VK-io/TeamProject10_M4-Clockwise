@@ -18,11 +18,10 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
-from zoneinfo import ZoneInfo
 
 from src.chat_agent import GUARDRAIL_REFUSAL, handle_user_chat, process_handoff
 from src.critic import critique
-from src.report import parse_due
+from src.report import STUDENT_TZ, parse_due
 from src.state import get_memory
 from src.watcher import run_watcher
 
@@ -106,7 +105,7 @@ def _date_variants(iso: Optional[str]) -> List[str]:
     d = parse_due(iso)
     if not d:
         return []
-    d = d.astimezone(ZoneInfo("America/New_York"))
+    d = d.astimezone(STUDENT_TZ)
     return [d.strftime("%b %d"), d.strftime("%B %d"), f"{d.strftime('%b')} {d.day}", f"{d.strftime('%B')} {d.day}", f"{d.month}/{d.day}"]
 
 

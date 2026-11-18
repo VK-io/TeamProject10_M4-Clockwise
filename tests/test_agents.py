@@ -128,3 +128,64 @@ def test_chat_react_updates_preference_memory(tmp_path):
     res = handle_user_chat("Only notify me for urgent changes", db_path=db, llm_fn=mock_llm)
     assert get_memory("triage_preference", db_path=db) == "urgent_only"
     assert "urgent alerts only" in res["answer"]
+
+def test_due_times_shown_in_fgcu_time_not_server_time():
+    from src.report import format_due
+    # Gabo's case: 2:45 PM EST showed as 7:45 PM; Paul's: Wed 11:59 PM showed as Thursday.
+    assert format_due("2026-11-18T19:45:00Z") == "Wed Nov 18, 02:45 PM"
+    assert format_due("2026-11-19T04:59:00Z") == "Wed Nov 18, 11:59 PM"
+    assert format_due("2026-10-15T03:59:00Z") == "Wed Oct 14, 11:59 PM"
+
+
+from src.chat_agent import dates_grounded, process_handoff
+
+MOVED = [{"event_type": "DUE_DATE_MOVED", "assignment_id": 1, "name": "Essay", "course_id": 101,
+          "course_name": "AI Agent Studio", "old_due_at": "Thu Oct 15, 07:59 PM",
+          "new_due_at": "Sat Oct 17, 07:59 PM", "past_due": False}]
+
+
+def test_invalid_preference_is_rejected(tmp_path):
+    db = str(tmp_path / "pref.db")
+    res = handle_user_chat("Notify me constantly", db_path=db,
+                           llm_fn=lambda *a, **kw: "THOUGHT: x\nACTION_MEMORY: SET_PREF=every_minute\nANSWER: Done.")
+    assert get_memory("triage_preference", default="concise", db_path=db) == "concise"
+    assert "can't set" in res["answer"]
+
+
+def test_mcp_preference_tool_rejects_invalid(monkeypatch):
+    import src.mcp_server as mcp_server
+    saved = {}
+    monkeypatch.setattr(mcp_server, "set_memory", lambda k, v: saved.update({k: v}))
+    tool = getattr(mcp_server.update_notification_preference, "fn", mcp_server.update_notification_preference)
+    assert "Rejected" in tool("every_minute") and not saved
+    assert "updated" in tool("urgent_only") and saved["triage_preference"] == "urgent_only"
+
+
+def test_coursework_with_stock_market_not_refused(tmp_path):
+    res = handle_user_chat("When is my stock market analysis project due?", db_path=str(tmp_path / "s.db"),
+                           llm_fn=lambda *a, **kw: "THOUGHT: ok\nACTION_MEMORY: NONE\nANSWER: It is due Friday.")
+    assert res["answer"] != GUARDRAIL_REFUSAL
+
+
+def test_empty_model_output_falls_back(tmp_path):
+    res = process_handoff({"triggers": MOVED}, db_path=str(tmp_path / "e.db"), llm_fn=lambda *a, **kw: "")
+    assert "Essay" in res["digest"] and "Oct 17" in res["digest"]
+
+
+def test_llm_exception_falls_back(tmp_path):
+    def boom(*a, **kw):
+        raise ConnectionError("offline")
+    res = process_handoff({"triggers": MOVED}, db_path=str(tmp_path / "x.db"), llm_fn=boom)
+    assert "Oct 17" in res["digest"]
+
+
+def test_hallucinated_date_is_replaced(tmp_path):
+    res = process_handoff({"triggers": MOVED}, db_path=str(tmp_path / "h.db"),
+                          llm_fn=lambda *a, **kw: "Essay moved to Jan 01.")
+    assert "Jan 01" not in res["digest"] and "Oct 17" in res["digest"]
+
+
+def test_dates_grounded():
+    assert dates_grounded("Essay moved from Oct 15 to October 17.", MOVED)
+    assert dates_grounded("• [CHANGED] AI Agent Studio: Essay — Now due 10/17", MOVED)
+    assert not dates_grounded("Essay moved to 10/18.", MOVED)

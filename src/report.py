@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
+from zoneinfo import ZoneInfo
 
 UPCOMING_DAYS = 14
+# Canvas returns UTC; the cloud host runs in UTC, so converting to the server's local
+# zone showed FGCU deadlines 4-5 hours late (e.g. 11:59 PM Wed -> 4:59 AM Thu).
+STUDENT_TZ = ZoneInfo("America/New_York")
 
 def parse_due(due_at: Optional[str]) -> Optional[datetime]:
     if not due_at:
@@ -10,7 +14,7 @@ def parse_due(due_at: Optional[str]) -> Optional[datetime]:
 
 def format_due(due_at: Optional[str]) -> Optional[str]:
     due = parse_due(due_at)
-    return due.astimezone().strftime("%a %b %d, %I:%M %p") if due else None
+    return due.astimezone(STUDENT_TZ).strftime("%a %b %d, %I:%M %p") if due else None
 
 def _fmt(a: Dict[str, Any]) -> str:
     return f"- {a['name'].strip()} ({a.get('course_name', a['course_id'])}) - due {format_due(a['due_at'])}"
