@@ -95,3 +95,31 @@ python -m src.watcher --all-users
 * **Agent 1 — Backend Watcher (`src/watcher.py`):** Polls the Canvas REST API, diffs assignments against `assignments_snapshot`, and enqueues a `HandoffPayload` into `handoff_queue` only when `NEW`, `DUE_DATE_MOVED`, `REMINDER_3_DAY` (within 72h unsubmitted), or `REMINDER_1_DAY` (within 24h unsubmitted) triggers occur.
 * **Agent 2 — Frontend Chat & Advisor (`src/chat_agent.py`):** Consumes handoffs using a ReAct loop (`THOUGHT` / `ACTION_MEMORY` / `ANSWER`), sends push notifications via `ntfy.sh`, updates persistent notification preferences (`concise`, `all`, `urgent_only`), and enforces dual-layer input/system guardrails.
 * **Persistent Memory Layer (`src/state.py` & `src/mcp_server.py`):** Multi-tenant SQLite / Turso state storing assignment baselines, user preferences, and MCP tool bindings.
+
+---
+
+## 🔁 CHANGES (M3 → M4)
+
+All changes below were made after M3 (Oct 28) and are in this repo's commit history. Eval numbers are from `python -m src.evaluate` (mock LLM, which checks the watcher, guardrails and fallbacks, not digest wording). Baseline = M3/M4-beta code before the fixes (`eval/results_baseline_mock.*`); final = current code (`eval/results_final_mock.*`).
+
+| # | Change | Why | Measured impact |
+|---|---|---|---|
+| 1 | **Evaluation runner + critic agent** (`src/evaluate.py`, `src/critic.py`, `tests/eval_cases.json`) | The M3 report described an eval suite and critic that were not in the repo. M4 builds them: the 10 committed cases + 3 supplementary cases for M3's named failure modes (wrongful refusal, empty output, hallucinated date). | Enables measurement. Baseline: **9/10 core (TC10 fails), 0/3 supplementary.** |
+| 2 | **Preference allow-list** (`ALLOWED_PREFS` in `chat_agent.py` and the MCP tool) | TC10: the model emitted `SET_PREF=every_minute` and it was written to memory. | TC10 FAIL → PASS. Core **9/10 → 10/10**; all critical cases pass. |
+| 3 | **Removed topic words from the pre-LLM regex** (`bitcoin`, `stock market`) | They appear in real course titles ("stock market analysis project") and caused wrongful refusals. Injection/trivia patterns kept; the system prompt still refuses off-topic chat. | S01 FAIL → PASS. |
+| 4 | **Template-digest fallback** for empty output or a failed LLM call | An empty model answer produced an empty push alert. | S02 FAIL → PASS. New unit tests for empty output and LLM exceptions. |
+| 5 | **Date-grounding output guardrail** (`dates_grounded`) | Nothing checked digest dates against Canvas; an invented date could reach a student. | S03 FAIL → PASS. |
+| 6 | **Due times shown in FGCU time** (`STUDENT_TZ` in `src/report.py`, `tzdata` dependency) | 3 of 5 user testers saw wrong due times (e.g. 7:45 shown for a 2:45 deadline; a Wednesday deadline shown as Thursday). Root cause: times were converted to the cloud server's zone (UTC), 5 hours ahead of Eastern. | Regression test reproduces both tester cases and passes. Not covered by the 10 eval cases (they compare the digest against the same formatter), so impact is measured by the unit test and by user testing. |
+| 7 | **Chat error fallback fixed** (`src/app.py`) | On an LLM error the app referenced an undefined variable and crashed instead of showing the fallback message. | Manual check; app compiles and shows the fallback text. |
+| 8 | **Scheduled Canvas poll fixed** (`.github/workflows/daily_poll.yml`) | Poll steps were gated on a `0 12 * * *` schedule that did not exist, so scheduled polls never ran; only manual runs did. Added that schedule and fixed a shell syntax error in the keep-awake ping. | Operational fix; push alerts can now fire without a manual run. |
+
+**Totals:** unit tests 14 → 22 (all pass). Mock eval core 9/10 → **10/10**, supplementary 0/3 → **3/3**, meets the M3 threshold.
+
+**Run the evaluation:**
+```bash
+python -m pytest                                  # 22 tests
+python -m src.evaluate --label final_mock         # mock LLM
+python -m src.evaluate --live --label final       # real NRP model + critic (needs NRP_API_KEY)
+```
+
+**Known limitations added in M4:** mock mode cannot grade digest wording (only `--live` + critic does); the date guardrail checks month/day only, not times; the LLM guardrail is inconsistent on planning questions (one tester's time-estimate question was refused while another's time-management question was answered).
