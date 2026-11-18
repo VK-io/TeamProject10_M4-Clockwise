@@ -4,3 +4,4 @@ fastmcp>=0.1.0
 python-dotenv>=1.0.0
 pytest>=8.0.0
 streamlit>=1.38.0
+tzdata>=2024.1

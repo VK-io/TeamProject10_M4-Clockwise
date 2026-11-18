@@ -1,0 +1,14 @@
+{
+  "label": "baseline_mock",
+  "mode": "mock",
+  "run_at": "2026-11-18T20:13:50.492983+00:00",
+  "model": "mock",
+  "core_passed": 9,
+  "core_total": 10,
+  "pass_rate": 90.0,
+  "critical_cases_all_pass": false,
+  "critic_mean": null,
+  "meets_threshold": false,
+  "supplementary_passed": 0,
+  "supplementary_total": 3
+}
