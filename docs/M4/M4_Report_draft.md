@@ -2,14 +2,11 @@
 
 *CEN 4930 · Team 10 · Evaluated + User-Tested Agent*
 
-> `[TODO]` marks every spot that still needs data from the team. **Don't submit with any left.**
-
 ## Team
 | Member | Background | M4 contributions |
 |---|---|---|
-| [TODO] | | |
-| [TODO] | | |
-| [TODO] | | |
+| Vesper | Software Engineering | Built the agent and deployed it on Streamlit |
+| Leonardo | Entrepreneurship | Recruited the 5 beta testers |
 
 ---
 

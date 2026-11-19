@@ -18,7 +18,7 @@ Five external testers (FGCU students, none on Team 10 or in our CEN 4930 section
 ## Session 1
 
 - **Tester:** Sophomore, Entrepreneurship major. Runs his own business and already uses AI agents (Claude with a browser agent) day to day.
-- **Date and format:** [TODO: date] · live, facilitator present · ≈3 min
+- **Date and format:** Wed Nov 18, 2026 · live, facilitator present · ≈3 min
 - **Task given:** Connect Clockwise to your Canvas, ask it anything about your assignments, then react to the push-notification feature and say what you like, dislike and would improve.
 - **What they did:**
   1. Completed setup (Canvas access token + PIN). Described it as "pretty easy… As long as you have all the steps, it should be pretty, pretty seamless."
@@ -33,7 +33,7 @@ Five external testers (FGCU students, none on Team 10 or in our CEN 4930 section
 ## Session 2
 
 - **Tester:** Senior, Entrepreneurship major, balancing coursework with a startup validation project.
-- **Date and format:** [TODO: date] · live, facilitator present · ≈3.5 min
+- **Date and format:** Wed Nov 18, 2026 · live, facilitator present · ≈3.5 min
 - **Task given:** Connect Clockwise, ask it anything about your assignments, then say what you like, dislike and would improve.
 - **What they did:**
   1. Completed setup: "Pretty seamless process. Took a little long, but, like, I mean, that's no big deal."
@@ -48,7 +48,7 @@ Five external testers (FGCU students, none on Team 10 or in our CEN 4930 section
 ## Session 3
 
 - **Tester:** Senior, Software Engineering major.
-- **Date and format:** [TODO: date] · live, facilitator present
+- **Date and format:** Mon Nov 16, 2026 · live, facilitator present
 - **Task given:** Connect Clockwise, ask it about your week, then give feedback.
 - **What they did:**
   1. Completed setup: "I thought it was very easy, because all you need is, like, just the access key, and that's basically it. You just make a PIN."
@@ -63,7 +63,7 @@ Five external testers (FGCU students, none on Team 10 or in our CEN 4930 section
 ## Session 4
 
 - **Tester:** Senior, Software Engineering major; has written code and looked at the project's GitHub repo.
-- **Date and format:** [TODO: date] · live, facilitator present
+- **Date and format:** Mon Nov 16, 2026 · live, facilitator present
 - **Task given:** Connect Clockwise, ask it questions, think aloud, then give feedback.
 - **What they did:**
   1. Completed setup. First reaction to the UI: "super simple" and "ChatGPT-esque."
@@ -78,7 +78,7 @@ Five external testers (FGCU students, none on Team 10 or in our CEN 4930 section
 ## Session 5
 
 - **Tester:** Sophomore, Entrepreneurship major; says he is already on top of his assignments.
-- **Date and format:** [TODO: date] · live, facilitator present
+- **Date and format:** Wed Nov 18, 2026 · live, facilitator present
 - **Task given:** Connect Clockwise, ask it questions, then give feedback.
 - **What they did:**
   1. Completed setup; found the interface "very straightforward."
